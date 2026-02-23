@@ -1,9 +1,8 @@
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from torch.cuda.amp import autocast, GradScaler
 
-# 一个简单的模型
+# 简单模型
 class SimpleModel(nn.Module):
     def __init__(self):
         super().__init__()
@@ -15,28 +14,22 @@ class SimpleModel(nn.Module):
         return self.fc2(self.relu(self.fc1(x)))
 
 # 初始化模型、优化器和损失函数
-model = SimpleModel().cuda()
+model = SimpleModel()
 optimizer = optim.Adam(model.parameters(), lr=1e-3)
 criterion = nn.MSELoss()
 
-# 混合精度工具
-scaler = GradScaler()
-
 # 模拟训练循环
 for epoch in range(3):
-    inputs = torch.randn(32, 512).cuda()
-    targets = torch.randn(32, 512).cuda()
+    # 输入用 FP16，模拟低精度
+    inputs = torch.randn(32, 512).half()
+    targets = torch.randn(32, 512).float()  # 标签保持 FP32
+
+    # 前向传播：模型参数是 FP32，但输入是 FP16
+    outputs = model(inputs.float())  # 转换为 FP32 保证稳定性
+    loss = criterion(outputs, targets)
 
     optimizer.zero_grad()
-
-    # autocast: 在这里自动使用 FP16 进行前向和反向传播
-    with autocast():
-        outputs = model(inputs)
-        loss = criterion(outputs, targets)
-
-    # 使用 scaler 缩放梯度，避免 FP16 下梯度过小
-    scaler.scale(loss).backward()
-    scaler.step(optimizer)
-    scaler.update()
+    loss.backward()
+    optimizer.step()
 
     print(f"Epoch {epoch+1}, Loss: {loss.item():.4f}")
